@@ -7,10 +7,19 @@ const handlebars = require('express-handlebars')
     .create({ defaultLayout: 'main' });
 
 const fortune = require('./lib/fortune.js');
-
+let cookieSecret = 'secretString';
 const app = express();
 // установка body-parser-а для получения POST запросов
 app.use(require('body-parser'). urlencoded({ extended: true }));
+
+//подключим express-session
+app.use(require('cookie-parser')(cookieSecret));
+
+app.use(require('express-session')({
+    resave: false,
+    saveUninitialized: false,
+    secret: cookieSecret,
+}));
 // Инициализация движка handlebars
 app.engine('handlebars', handlebars.engine);
 app.set('view engine', 'handlebars');
@@ -23,6 +32,14 @@ app.use(express.static(__dirname + '/public'));
 //Оно должно находиться перед определениями любых маршрутов, в которых мы хотели бы его использовать
 app.use(function (req, res, next){
     res.locals.showTests = app.get('env') !== 'production' && req.query.test === '1';
+    next();
+});
+
+app.use(function(req, res, next){
+    // Если имеется экстренное сообщение,
+    // переместим его в контекст, а затем удалим
+    res.locals.flash = req.session.flash;
+    delete req.session.flash;
     next();
 });
 
@@ -62,12 +79,60 @@ app.get('/newsletter', function(req, res){
     res.render('newsletter', { csrf: 'CSRF token goes here' });
 });
 // Маршрут POST запрос с контекстом из форм
-app.post('/process' , function(req, res){
-    console.log('Form (from querystring): ' + req.query. form);
-    console.log('CSRF token (from hidden form field): ' + req.body._csrf);
-    console.log('Name (from visible form field): ' + req.body.name);
-    console.log('Email (from visible form field): ' + req.body.email);
-    res.redirect(303, '/thank-you' );
+// app.post('/process' , function(req, res){
+//     console.log('Form (from querystring): ' + req.query. form);
+//     console.log('CSRF token (from hidden form field): ' + req.body._csrf);
+//     console.log('Name (from visible form field): ' + req.body.name);
+//     console.log('Email (from visible form field): ' + req.body.email);
+//     res.redirect(303, '/thank-you' );
+// });
+
+// Немного измененная версия официального регулярного выражения
+// W3C HTML5 для электронной почты:
+// https://html.spec.whatwg.org/multipage/forms.html#valid-e-mail-address
+const VALID_EMAIL_REGEX = new RegExp('^[a-zA-Z0-9.!#$%&\'*+\/=?^_`{|}~-]+@' +
+    '[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?' +
+    '(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$');
+
+app.post('/newsletter', function(req, res){
+    let name = req.body.name || '', email = req.body.email || '';
+    // Проверка вводимых данных
+    if(!email.match(VALID_EMAIL_REGEX)) {
+        if(req.xhr)
+            return res.json({ error: 'Некорректный адрес электронной почты.' });
+        req.session.flash = {
+            type: 'danger',
+            intro: 'Ошибка проверки!',
+            message: 'Введенный вами адрес электронной почты некорректен.',
+        };
+        return res.redirect(303, '/');
+    }
+    // NewsletterSignup — пример объекта, который вы могли бы
+    // создать;поскольку все реализации различаются,
+    // оставляю написание этих зависящих от
+    // конкретного проекта интерфейсов на ваше
+    // усмотрение. Это просто демонстрация того, как
+    // типичная реализация на основе Express может
+    // выглядеть в вашем проекте.
+    new NewsletterSignup({ name: name, email: email }).save(function(err){
+        if(err) {
+            if(req.xhr)
+                return res.json({ error: 'Ошибка базы данных.' });
+            req.session.flash = {
+                type: 'danger',
+                intro: 'Ошибка базы данных!',
+                message: 'Произошла ошибка базы данных. Пожалуйста, попробуйте позднее',
+            }
+            return res.redirect(303, '/');
+        }
+        if(req.xhr) return res.json({ success: true });
+        req.session.flash = {
+            type: 'success',
+            intro: 'Спасибо!',
+            message: 'Вы были подписаны на информационный бюллетень.',
+        };
+        return res.redirect(303, '/');
+    });
 });
 
 // Маршрут GET для страницы загрузки фото и файлов
