@@ -1,0 +1,29 @@
+<!doctype html>
+<html>
+<head>
+    <title>welcome to Home Page</title>
+    {{#if showTests}}
+        <link rel="stylesheet" href="/vendor/mocha.css">
+    {{/if}}
+    <script src="//code.jquery.com/jquery-2.0.2.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.5.3/dist/css/bootstrap.min.css" integrity="sha384-TX8t27EcRE3e/ihU7zmQxVncDAy5uIKz4rEkgIXeMed4M0jlfIDPvg6uqKI2xXr2" crossorigin="anonymous">
+</head>
+<body>
+    <header><img src="/img/images.png" alt="Логотип Meadowlark Travel"></header>
+    {{{body}}}
+    {{#if showTests}}
+        <div id="mocha"></div>
+            <script src="/vendor/mocha.js"></script>
+            <script src="/vendor/chai.js"></script>
+            <script>
+                mocha.ui('tdd');
+                const assert = chai.assert;
+            </script>
+            <script src="/qa/tests-global.js"></script>
+        {{#if pageTestScript}}
+            <script src="{{pageTestScript}}"></script>
+        {{/if}}
+        <script>mocha.run();</script>
+    {{/if}}
+</body>
+</html>
