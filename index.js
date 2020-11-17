@@ -161,7 +161,25 @@ app.use(function (req, res){
     res.send('404 - Не найдено!');
 });
 // прослушивание порта 3000
-app.listen(app.get('port'), function (){
-    console.log('Express запущен на http://localhost:'+
-        app.get('port') + ': нажмите Ctrl + C для завершения.');
-});
+// app.listen(app.get('port'), function (){
+//     console.log('Express запущен на http://localhost:'+
+//         app.get('port') + ': нажмите Ctrl + C для завершения.');
+// });
+// функция позволяет быть включенным в качестве модуля посредством оператора require.
+function startServer() {
+    app.listen(app.get('port'), function() {
+        console.log( 'Express запущен в режиме ' + app.get('env') +
+            ' на http://localhost:' + app.get('port') +
+            '; нажмите Ctrl+C для завершения.' );
+    });
+}
+if(require.main === module){
+    // Приложение запускается непосредственно;
+    // запускаем сервер приложения
+    startServer();
+} else {
+    // Приложение импортируется как модуль
+    // посредством "require":
+    // экспортируем функцию для создания сервера
+    module.exports = startServer;
+}
