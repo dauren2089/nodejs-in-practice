@@ -46,6 +46,9 @@ app.use(function(req, res, next){
 app.get('/', function (req, res){
     // res.type('text/plain');
     // res.send('Home Page');
+    const cluster = require('cluster');
+    if(cluster.isWorker) console.log('Исполнитель %d получил запрос',
+        cluster.worker.id);
     res.render('home');
 });
 
@@ -154,6 +157,14 @@ app.post('/contest/vacation-photo/:year/:month' , function(req, res){
         res.redirect(303, '/thank-you' );
     });
 });
+
+// проверка запуска кластеров
+// app.use('/id', function(req,res,next){
+//     const cluster = require('cluster');
+//     if(cluster.isWorker) console.log('Исполнитель %d получил запрос',
+//         cluster.worker.id);
+// });
+
 // обработка страниц 404
 app.use(function (req, res){
     res.type('text/plain');
