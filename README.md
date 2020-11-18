@@ -1530,3 +1530,149 @@ suite('Стрессовые тесты', function(){
 ```sh
 $ grunt
 ```
+
+## Хранение данных
+
+### Хранение данных в файловой системе
+Один из способов хранения информации — простое сохранение данных в так называемых неструктурированных файлах (неструктурированные потому, что в таких файлах нет внутренней структуры, они представляют собой просто последовательность байтов). Node обеспечивает возможность хранения данных в файловой системе посредством модуля fs (file system — «файловая система»).
+
+У хранения данных в файловой системе есть свои недостатки. В частности, оно плохо масштабируется: в ту же минуту, когда вам потребуется более одного сервера для обработки возросшего количества трафика, вы столкнетесь с проблемами хранения данных в файловой системе, разве что все ваши серверы имеют доступ к общей файловой системе.
+
+В силу этих причин вам лучше использовать для хранения данных базы данных, а не файловые системы. Единственное исключение — хранение двоичных файлов, таких как изображения, звуковые или видеофайлы.
+
+Заменим в файле приложения обработчик формы (убедитесь, что
+перед этим кодом имеется var fs = require(fs)):
+```js
+app.post('/contest/vacation-photo/:year/:month', function(req, res){
+    const form = new formidable.IncomingForm();
+    form.parse(req, function(err, fields, files){
+        if(err) {
+            res.session.flash = {
+                type: 'danger',
+                intro: 'Упс!',
+                message: 'Во время обработки отправленной Вами формы ' +
+                'произошла ошибка. Пожалуйста, попробуйте еще раз.',
+            };
+            return res.redirect(303, '/contest/vacation-photo');
+        }
+        var photo = files.photo;
+        var dir = vacationPhotoDir + '/' + Date.now();
+        var path = dir + '/' + photo.name;
+        fs.mkdirSync(dir);
+        fs.renameSync(photo.path, dir + '/' + photo.name);
+        saveContestEntry('vacation-photo', fields.email,
+            req.params.year, req.params.month, path);
+        req.session.flash = {
+            type: 'success',
+            intro: 'Удачи!',
+            message: 'Вы стали участником конкурса.',
+        };
+        return res.redirect(303, '/contest/vacation-photo/entries');
+    });
+});
+```
+
+### Хранение данных в облаке
+
+Вот пример того, как легко можно сохранить файл в учетной записи Amazon S3:
+```js
+const filename = 'customerUpload.jpg';
+aws.putObject({
+	ACL: 'private',
+	Bucket: 'uploads',
+	Key: filename,
+	Body: fs.readFileSync(__dirname + /tmp/ + filename)
+});
+```
+См. документацию AWS SDK (http://aws.amazon.com/sdkfornodejs) для получения более подробной информации.
+
+И пример того, как выполнить то же самое с помощью Microsoft Azure:
+```js
+const filename = 'customerUpload.jpg';
+const blobService = azure.createBlobService();
+blobService.putBlockBlobFromFile('uploads', filename, __dirname + '/tmp/' + filename);
+ ```
+
+См. документацию Microsoft Azure (http://bit.ly/azure_documentation) для получения более подробной информации.
+
+### Хранение данных в базе данных
+Одно из преимуществ JavaScript — исключительная гибкость его объектной
+модели: если вам нужно добавить в объект свойство или метод, вы просто добавляете его, не беспокоясь о необходимости модифицировать класс. К сожалению, такая разновидность гибкости будет негативно влиять на ваши базы данных: они могут становиться фрагментированными и труднооптимизируемыми. 
+
+Mongoose пытается найти компромисс: он представляет схемы и модели (взятые вместе, схемы и модели подобны классам в обычном объектно-ориентированном программировании). Схемы довольно гибки, но тем не менее обеспечивают необходимую для вашей базы данных структуру.
+
+Установим модуль Mongoose:
+ ```sh
+npm install --save mongoose
+```
+
+добавляем учетные данные нашей базы данных в файл credentials.js:
+```js
+mongo: {
+	development: {
+		connectionString: 'your_dev_connection_string',
+	},
+	production: {
+		connectionString: 'your_production_connection_string',
+	},
+}
+```
+
+Вам также понадобится пользователь для базы данных. Чтобы создать его, нажмите на Users (Пользователи), а затем на Add database user (Добавить пользователя базы данных).
+
+Обратите внимание на то, что мы храним два набора учетных данных: один для разработки и один для эксплуатации. Можете забежать вперед и настроить две базы данных уже сейчас или просто ссылаться в обоих наборах учетных данных на одну и ту же базу данных (когда наступит время эксплуатации, вы сможете переключиться на использование двух отдельных баз данных).
+
+### Подключение к базе данных с помощью Mongoose
+Начнем с создания подключения к нашей базе данных:
+```js
+const mongoose = require('mongoose');
+const opts = {
+	server: {
+		socketOptions: { keepAlive: 1 }
+	}
+};
+switch(app.get('env')){
+	 case 'development':
+	 mongoose.connect(credentials.mongo.development.connectionString, opts);
+	 break;
+	 case 'production':
+	 mongoose.connect(credentials.mongo.production.connectionString, opts);
+	 break;
+	 default:
+	 throw new Error('Неизвестная среда выполнения: ' + app.get('env'));
+}
+```
+
+Объект options необязателен, но мы хотели бы задать опцию keepAlive, которая предотвратит появление ошибок подключения к базе данных для долго работающих приложений, таких как сайт.
+
+### Создание схем и моделей
+Создадим базу. Начнем с описания схемы и создания на ее основе модели. Создайте файл models/schemas.js:
+```js
+const mongoose = require('mongoose');
+const vacationSchema = mongoose.Schema({
+	name: String,
+	slug: String,
+	category: String,
+	sku: String,
+	description: String,
+	priceInCents: Number,
+	tags: [String],
+	inSeason: Boolean,
+	available: Boolean,
+	requiresWaiver: Boolean,
+	maximumGuests: Number,
+	notes: String,
+	packagesSold: Number,
+});
+
+vacationSchema.methods.getDisplayPrice = function(){
+	return '$' + (this.priceInCents / 100).toFixed(2);
+};
+
+const Vacation = mongoose.model('Vacation', vacationSchema);
+module.exports = Vacation;
+```
+
+Этот код объявляет свойства, составляющие нашу модель для отпуска, и типы
+этих свойств. Как видите, здесь есть несколько свойств со строковым типом данных, два численных и два булевых свойства и массив строк, обозначенный [String].
+На этой стадии мы также определяем методы, работающие на нашей схеме. 

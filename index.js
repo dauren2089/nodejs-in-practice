@@ -1,7 +1,7 @@
 const express = require('express');
 // Установка Formidable для загрузки файлов
 const formidable = require('formidable' );
-
+const fs = require('fs');
 // Установка механизма представления handlebars
 const handlebars = require('express-handlebars')
     .create({ defaultLayout: 'main' });
@@ -27,6 +27,15 @@ app.set('view engine', 'handlebars');
 app.set('port', process.env.PORT || 3000);
 
 app.use(express.static(__dirname + '/public'));
+
+// Проверяем, существует ли каталог
+const dataDir = __dirname + '/data';
+const vacationPhotoDir = dataDir + '/vacation-photo';
+fs.existsSync(dataDir) || fs.mkdirSync(dataDir);
+fs.existsSync(vacationPhotoDir) || fs.mkdirSync(vacationPhotoDir);
+function saveContestEntry(contestName, email, year, month, photoPath){
+    // TODO... это будет добавлено позднее
+}
 
 //Промежуточное ПО для распознания test=1 в строке запроса.
 //Оно должно находиться перед определениями любых маршрутов, в которых мы хотели бы его использовать
@@ -157,7 +166,33 @@ app.post('/contest/vacation-photo/:year/:month' , function(req, res){
         res.redirect(303, '/thank-you' );
     });
 });
-
+// app.post('/contest/vacation-photo/:year/:month', function(req, res){
+//     const form = new formidable.IncomingForm();
+//     form.parse(req, function(err, fields, files){
+//         if(err) {
+//             res.session.flash = {
+//                 type: 'danger',
+//                 intro: 'Упс!',
+//                 message: 'Во время обработки отправленной Вами формы ' +
+//                     'произошла ошибка. Пожалуйста, попробуйте еще раз.',
+//             };
+//             return res.redirect(303, '/contest/vacation-photo');
+//         }
+//         const photo = files.photo;
+//         const dir = vacationPhotoDir + '/' + Date.now();
+//         const path = dir + '/' + photo.name;
+//         fs.mkdirSync(dir);
+//         fs.renameSync(photo.path, dir + '/' + photo.name);
+//         saveContestEntry('vacation-photo', fields.email,
+//             req.params.year, req.params.month, path);
+//         req.session.flash = {
+//             type: 'success',
+//             intro: 'Удачи!',
+//             message: 'Вы стали участником конкурса.',
+//         };
+//         return res.redirect(303, '/contest/vacation-photo/entries');
+//     });
+// });
 // проверка запуска кластеров
 // app.use('/id', function(req,res,next){
 //     const cluster = require('cluster');

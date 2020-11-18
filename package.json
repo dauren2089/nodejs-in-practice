@@ -18,6 +18,7 @@
     "express-session": "^1.17.1",
     "formidable": "^1.2.2",
     "loadtest": "^5.1.1",
+    "mongoose": "^5.10.15",
     "nodemailer": "^6.4.16"
   },
   "devDependencies": {
