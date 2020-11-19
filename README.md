@@ -1675,4 +1675,263 @@ module.exports = Vacation;
 
 Этот код объявляет свойства, составляющие нашу модель для отпуска, и типы
 этих свойств. Как видите, здесь есть несколько свойств со строковым типом данных, два численных и два булевых свойства и массив строк, обозначенный [String].
-На этой стадии мы также определяем методы, работающие на нашей схеме. 
+На этой стадии мы также определяем методы, работающие на нашей схеме.
+
+Экспортируем созданный Mongoose объект модели Vacation. Чтобы использовать эту модель в приложении, можем импортировать ее следующим образом: 
+```js
+const Vacation = require('./models/vacation.js');
+```
+
+#### Задание начальных данных
+
+В нашей базе данных пока еще нет никаких отпускных туров, так что мы добавим несколько для начала. Со временем вы, возможно, захотите иметь способ управлять продуктами, но для целей данной книги мы просто выполним это все в коде:
+```js
+Vacation.find(function(err, vacations){
+	if(err) return cosole.error(err);
+  		if(vacations.length) return;
+ 
+		 new Vacation({
+			 name: 'Однодневный тур по реке Худ',
+			 slug: 'hood-river-day-trip',
+			 category: 'Однодневный тур',
+			 sku: 'HR199',
+			 description: 'Проведите день в плавании по реке Колумбия ' +
+			 'и насладитесь сваренным по традиционным  рецептам ' +
+			 'пивом на реке Худ!',
+			 priceInCents: 9995,
+			 tags: ['однодневный тур', 'река худ', 'плавание', 'виндсерфинг', 'пивоварни'],
+			 inSeason: true,
+			 maximumGuests: 16,
+			 available: true,
+			 packagesSold: 0,
+			 }).save();
+
+		 new Vacation({
+			 name: 'Отдых в Орегон Коуст',
+			 slug: 'oregon-coast-getaway',
+			 category: 'Отдых на выходных',
+			 sku: 'OC39',
+			 description: 'Насладитесь океанским воздухом ' +
+			 'и причудливыми прибрежными городками!',
+			 priceInCents: 269995,
+			 tags: ['отдых на выходных', 'орегон коуст',
+			 'прогулки по пляжу'],
+			 inSeason: false,
+			 maximumGuests: 8,
+			 available: true,
+			 packagesSold: 0,
+			 }).save();
+
+		 new Vacation({
+			 name: 'Скалолазание в Бенде',
+			 slug: 'rock-climbing-in-bend',
+			 category: 'Приключение',
+			 sku: 'B99',
+			 description: 'Пощекочите себе нервы горным восхождением ' +
+			 'на пустынной возвышенности.',
+			 priceInCents: 289995,
+			 tags: ['отдых на выходных', 'бенд', 'пустынная возвышенность', 'скалолазание'],
+			 inSeason: true,
+			 requiresWaiver: true,
+			 maximumGuests: 4,
+			 available: false,
+			 packagesSold: 0,
+			 notes: 'Гид по данному туру в настоящий момент ' +
+			 'восстанавливается после лыжной травмы.',
+			 }).save();
+});
+```
+
+Здесь используются два метода Mongoose. Первый, find (искать), выполняет
+ровно то, о чем говорит его название. В данном случае он находит все экземпляры Vacation в базе данных и выполняет обратный вызов с этим списком. Мы делаем это, потому что не хотим продолжать чтение первоначально заданных отпускных туров: если в базе данных уже есть отпускные туры, то первоначальное ее заполнение было выполнено и мы можем спокойно идти своей дорогой. 
+
+При первом своем выполнении, однако, find вернет пустой список, так что мы переходим к созданию двух отпускных туров, а затем вызываем для них метод save, сохраняющий новые объекты в базе данных.
+
+#### Извлечение данных
+Теперь же хотим передать функции find параметр, на основе которого будет выполняться фильтрация данных, а именно отобразить только доступные в настоящий момент отпускные туры:
+```html
+<h1>Отпускные туры</h1>
+{{#each vacations}}
+ <div class="vacation">
+ <h3>{{name}}</h3>
+ <p>{{description}}</p>
+ {{#if inSeason}}
+ <span class="price">{{price}}</span>
+ <a href="/cart/add?sku={{sku}}" class="btn btn-default">Buy Now!</a>
+ {{else}}
+ <span class="outOfSeason">К сожалению, в настоящий момент не сезон для
+этого тура.
+ {{! Страница "сообщите мне, когда наступит сезон для этого тура" станет
+нашей следующей задачей. }}
+ <a href="/notify-me-when-in-season?sku={{sku}}">Сообщите мне, когда наступит сезон для этого тура.</a>
+ {{/if}}
+ </div>
+{{/each}}
+```
+
+Теперь мы можем создать обработчики маршрутов, которые свяжут все это
+вместе:
+```js
+// См. маршрут для /cart/add в прилагаемом к книге репозитории
+app.get('/vacations', function(req, res){
+	 Vacation.find({ available: true }, function(err, vacations){
+	 var context = {
+	 vacations: vacations.map(function(vacation){
+	 return {
+	 sku: vacation.sku,
+	 name: vacation.name,
+	 description: vacation.description,
+	 price: vacation.getDisplayPrice(),
+	 inSeason: vacation.inSeason,
+	 }
+	 })
+	 };
+	 res.render('vacations', context);
+	 });
+});
+```
+
+В отдельных вариантах архитектуры MVC появляется третий компонент, называемый - модель представления. По сути, модель представления очищает модель (или модели) и преобразует ее наиболее подходящим для отображения в представлении образом. Фактически то, что мы выполнили ранее, было созданием модели представления на лету.
+
+#### Добавление данных
+Cоздадим схему и модель (models/vacationInSeasonListener.js):
+```js
+var mongoose = require('mongoose');
+var vacationInSeasonListenerSchema = mongoose.Schema({
+ email: String,
+ skus: [String],
+});
+var VacationInSeasonListener = mongoose.model('VacationInSeasonListener',
+ vacationInSeasonListenerSchema);
+module.exports = VacationInSeasonListener;
+```
+
+Далее мы создадим представления views/notify-me-when-in-season.handlebars:
+```html
+<div class="formContainer">
+ <form class="form-horizontal newsletterForm" role="form"
+ action="/notify-me-when-in-season" method="POST">
+ <input type="hidden" name="sku" value="{{sku}}">
+ <div class="form-group">
+ <label for="fieldEmail" class="col-sm-2 control-label">Электронная почта</label>
+ <div class="col-sm-4">
+ <input type="email" class="form-control" required
+ id="fieldEmail" name="email">
+ </div>
+ </div>
+ <div class="form-group">
+ <div class="col-sm-offset-2 col-sm-4">
+ <button type="submit" class="btn btn-default">Отправить</button>
+ </div>
+ </div>
+ </form>
+</div>
+```
+И наконец, обработчики маршрутов:
+```js
+var VacationInSeasonListener =
+ require ('./models/vacationInSeasonListener.js');
+app.get('/notify-me-when-in-season', function(req, res){
+ res.render('notify-me-when-in-season', { sku: req.query.sku });
+});
+app.post('/notify-me-when-in-season', function(req, res){
+ VacationInSeasonListener.update(
+ { email: req.body.email },
+ { $push: { skus: req.body.sku } },
+ { upsert: true },
+ function(err){
+ if(err) {
+ console.error(err.stack);
+ req.session.flash = {
+ type: 'danger',
+ intro: 'Упс!',
+ message: 'При обработке вашего запроса ' +
+ 'произошла ошибка.',
+ };
+ return res.redirect(303, '/vacations');
+ }
+ req.session.flash = {
+ type: 'success',
+ intro: 'Спасибо!',
+ message: 'Вы будете оповещены, когда наступит ' +
+ 'сезон для этого тура.',
+ };
+ return res.redirect(303, '/vacations');
+ }
+ );
+});
+```
+
+### Использование MongoDB в качестве сеансового хранилища
+Хранилище в памяти не подходит для использования в среде эксплуатации. К счастью, можно легко настроить MongoDB для применения в качестве сеансового хранилища.
+
+Чтобы обеспечить работу сеансового хранилища MongoDB, будем использовать
+пакет session-mongoose. 
+```sh
+$npm install --save session-mongoose)
+```
+можно настроить его в главном файле приложения:
+```js
+var MongoSessionStore = require('session-mongoose')(require('connect'));
+var sessionStore = new MongoSessionStore({ url:
+ credentials.mongo[app.get('env')].connectionString });
+app.use(require('cookie-parser')(credentials.cookieSecret));
+app.use(require('express-session')({
+ resave: false,
+ saveUninitialized: false,
+ secret: credentials.cookieSecret,
+ store: sessionStore,
+}));
+```
+
+Начнем с добавления списка для выбора валюты внизу страницы отпускных туров:
+```html
+<hr>
+<p>Currency:
+ <a href="/set-currency/USD" class="currency {{currencyUSD}}">USD</a> |
+ <a href="/set-currency/GBP" class="currency {{currencyGBP}}">GBP</a> |
+ <a href="/set-currency/BTC" class="currency {{currencyBTC}}">BTC</a>
+</p>
+```
+Наконец, добавим обработчик маршрута для задания валюты и отредактируем
+обработчик маршрута для /vacations, чтобы отображать цены в текущей валюте:
+```js
+app.get('/set-currency/:currency', function(req,res){
+    req.session.currency = req.params.currency;
+    return res.redirect(303, '/vacations');
+});
+function convertFromUSD(value, currency){
+    switch(currency){
+    case 'USD': return value * 1;
+    case 'GBP': return value * 0.6;
+    case 'BTC': return value * 0.0023707918444761;
+    default: return NaN;
+    }
+}
+app.get('/vacations', function(req, res){
+    Vacation.find({ available: true }, function(err, vacations){
+        var currency = req.session.currency || 'USD';
+        var context = {
+            currency: currency,
+            vacations: vacations.map(function(vacation){
+            return {
+            sku: vacation.sku,
+            name: vacation.name,
+            description: vacation.description,
+            inSeason: vacation.inSeason,
+            price: convertFromUSD(vacation.priceInCents/100, currency),
+            qty: vacation.qty,
+        }
+    })
+ };
+switch(currency){
+ case 'USD': context.currencyUSD = 'selected'; break;
+ case 'GBP': context.currencyGBP = 'selected'; break;
+ case 'BTC': context.currencyBTC = 'selected'; break;
+}
+res.render('vacations', context);
+});
+});
+```
+
+MongoDB — не обязательно лучший выбор сеансового хранилища: для данных целей это стрельба из пушки по воробьям. Распространенная и легкая в использовании альтернатива для сохранения сеанса — Redis. 
