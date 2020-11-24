@@ -66,7 +66,7 @@ app.get('/api/attraction/:id', function(req,res){
 
 async function start() {
     try {
-        const url = `mongodb+srv://dbUser:JEyNHlDs8fMHs6X3@cluster0.tw5x2.mongodb.net/attraction`
+        const url = `mongodb+srv://user:pass@cluster0.tw5x2.mongodb.net/attraction`
         await mongoose.connect(url, {useNewUrlParser: true, useUnifiedTopology: true})
 
         app.listen(PORT, () => {
