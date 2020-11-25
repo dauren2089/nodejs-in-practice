@@ -2906,3 +2906,125 @@ app.get('/account', function(req, res) {
 app.get('/unauthorized', function(req, res) {
 	res.status(403).render('unauthorized');
 });
+
+Сейчас только прошедшие аутентификацию пользователи увидят страницу учетной записи; все остальные будут перенаправлены на страницу Не авторизирован.
+
+### Авторизация на основе ролей
+
+Допустим, мы хотим, чтобы покупатели видели только свои учетные записи (сотрудники могут видеть гораздо больше, когда получат доступ к информации учетной записи пользователя).
+
+Помните, что в одном маршруте у вас может быть несколько функций, которые вызываются в определенном порядке. Создадим функцию customersOnly, которая пропустит только покупателей:
+
+```js
+function customerOnly(req, res, next){
+ if(req.user && req.user.role==='customer') return next();
+ // Мы хотим, чтобы при посещении страниц только
+ // покупатели знали, что требуется логин
+ res.redirect(303, '/unauthorized');
+}
+```
+
+Создадим также функцию employeeOnly, которая будет работать немного подругому. Скажем, у нас есть путь /sales, который мы хотим сделать доступным только для сотрудников. Кроме того, мы не хотим, чтобы все прочие знали о его существовании, даже если наткнутся на него случайно. 
+
+Если потенциальный злоумышленник пойдет на путь /sales, он увидит страницу Не авторизирован, а это уже небольшая информация, которая сделает атаку проще (просто из-за того что известно, что такая страница существует).
+
+Таким образом, для обеспечения небольшой дополнительной безопасности мы хотим, чтобы не сотрудники, посещая страницу /sales, видели обычную страницу 404, которая не позволит потенциальным злоумышленникам работать с ней:
+```js
+function employeeOnly(req, res, next){
+	if(req.user && req.user.role==='employee') return next();
+	// мы хотим, чтобы неуспех авторизации посещения
+	// страниц только для сотрудников был скрытым
+	// чтобы потенциальные хакеры не смогли даже
+	// узнать, что такая страница существует
+	next('route');
+}
+```
+
+Вызов next('route') не просто выполнит следующий обработчик в маршруте —
+он пропустит этот маршрут в целом. Если предположить, что нет дальнейшего маршрута, который будет обрабатывать /account, это в конечном итоге приведет к обработчику 404, давая нам желаемый результат.
+
+```js
+Вот как просто использовать эти функции:
+// маршруты покупателя
+app.get('/account', customerOnly, function(req, res){
+	res.render('account');
+});
+app.get('/account/order-history', customerOnly, function(req, res){
+	res.render('account/order-history');
+});
+app.get('/account/email-prefs', customerOnly, function(req, res){
+	res.render('account/email-prefs');
+});
+// маршруты сотрудника
+app.get('/sales', employeeOnly, function(req, res){
+	res.render('sales');
+});
+```
+
+Например, что если вы хотите разрешить несколько ролей? Можете использовать следующую функцию и маршрут:
+```js
+function allow(roles) {
+	return function(req, res, next) {
+	if(req.user && roles.split(',').indexOf(req.user.role)!==-1) return next();
+	res.redirect(303, '/unauthorized');
+	};
+}
+app.get('/account', allow('customer,employee'), function(req, res){
+	res.render('account');
+});
+```
+
+### Добавление дополнительных поставщиков аутентификации
+
+ Cкопируйте идентификатор клиента и секрет клиента в ваш файл credentials.js,
+
+ Установите passport-google
+```sh
+$ npm install —save passport-google-oauth
+```
+
+и добавьте следующий код в lib/auth.js:
+```js
+// configure Google strategy
+passport.use(new GoogleStrategy({
+clientID: config.google.clientID,
+clientSecret: config.google.clientSecret,
+callbackURL: (options.baseUrl || '') + '/auth/google/callback',
+}, (token, tokenSecret, profile, done) => {
+const authId = 'google:' + profile.id
+db.getUserByAuthId(authId)
+.then(user => {
+if(user) return done(null, user)
+db.addUser({
+authId: authId,
+name: profile.displayName,
+created: new Date(),
+role: 'customer',
+})
+.then(user => done(null, user))
+.catch(err => done(err, null))
+})
+.catch(err => {
+console.log('whoops, there was an error: ', err.message)
+if(err) return done(err, null);
+})
+}))
+```
+
+А этот код — в метод registerRoutes:
+```js
+// регистрируем маршруты Google
+app.get('/auth/google', (req, res, next) => {
+	if(req.query.redirect) req.session.authRedirect = req.query.redirect
+	passport.authenticate('google', { scope: ['profile'] })(req, res, next)
+})
+app.get('/auth/google/callback', passport.authenticate('google',
+	{ failureRedirect: options.failureRedirect }),
+	(req, res) => {
+		// we only get here on successful authentication
+		const redirect = req.session.authRedirect
+		if(redirect) delete req.session.authRedirect
+		res.redirect(303, req.query.redirect || options.successRedirect)
+	}
+)
+```
