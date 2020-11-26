@@ -2,6 +2,11 @@ const express = require('express');
 // Установка Formidable для загрузки файлов
 const formidable = require('formidable' );
 const fs = require('fs');
+
+
+const addRoute = require('./routes/add');
+const coursesRoute = require('./routes/courses');
+
 // Установка механизма представления handlebars
 const handlebars = require('express-handlebars')
     .create({ defaultLayout: 'main' });
@@ -51,6 +56,9 @@ app.use(function(req, res, next){
     delete req.session.flash;
     next();
 });
+
+app.use('/add', addRoute);
+app.use('/courses', coursesRoute);
 
 app.get('/', function (req, res){
     // res.type('text/plain');
