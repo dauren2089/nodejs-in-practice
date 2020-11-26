@@ -1,0 +1,94 @@
+// модель для курсов
+const uuid = require('uuid').v4
+const fs = require('fs')
+const path = require('path')
+
+ // Класс Курс
+class Course {
+    constructor(title, price, img) {
+        this.title = title
+        this.price = price
+        this.img = img
+        this.id = uuid()
+    }
+    // преобразуем в JSON
+    toJSON() {
+        return {
+            title: this.title,
+            price: this.price,
+            img: this.img,
+            id: this.id
+        }
+    }
+    // обновление данных
+    static async update(course) {
+        // получаем весь список курсов
+        const courses = await Course.getAll()
+        //из списка курсов находим необходимый по course.id
+        const idx = courses.findIndex(c => c.id === course.id)
+        //заменяем старый на новый курс
+        courses[idx] = course
+        //сохраняем в файле новый курс
+        return new Promise((resolve, reject) => {
+            fs.writeFile(
+                path.join(__dirname, '..', 'data', 'courses.json'),
+                JSON.stringify(courses),
+                (err) => {
+                    if (err) {
+                        reject(err)
+                    } else {
+                        resolve()
+                    }
+                }
+            )
+        });
+    }
+    // сохранение данных
+    async save() {
+        // получаем весь список курсов
+        const courses = await Course.getAll()
+        //преобразуем в JSOn
+        courses.push(this.toJSON())
+
+        //сохраняем в файле новый курс
+        return new Promise((resolve, reject) => {
+            fs.writeFile(
+                path.join(__dirname, '..', 'data', 'courses.json'),
+                JSON.stringify(courses),
+                (err) => {
+                    if (err) {
+                        reject(err)
+                    } else {
+                        resolve()
+                    }
+                }
+            )
+        })
+    }
+    // Возвращает списки всех курсы
+    static getAll() {
+        return new Promise((resolve, reject) => {
+            fs.readFile(
+                path.join(__dirname, '..', 'data', 'courses.json'),
+                'utf-8',
+                (err, content) => {
+                    if (err) {
+                        reject(err)
+                    } else {
+                        // преобразуем content из JSON в строку
+                        resolve(JSON.parse(content))
+                    }
+                }
+            )
+        })
+    }
+
+    // асинх функция получения данных по курсу (на входе: ID, на выходе: данные по курсу)
+    static async getById(id) {
+        const courses = await Course.getAll()
+        // Возвращаем курс с подходящим ID
+        return courses.find(c => c.id == id)
+    }
+}
+
+module.exports = Course
